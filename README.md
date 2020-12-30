@@ -56,7 +56,7 @@ index
   - from this step, we end up with 4 partition files, among which 2 are new partitions, and one is an overwritten partition.
   - first row in new data is older than lattest data in existing dataset. A new partition is created.
   - 2nd & 3rd rows have 'new values' and are added in the existing 1st partition file. It is overwritten.
-  - 4rth row has exactly the same data as a row already in the existing 2nd partition file: this file is left unmodified.
+  - 4th row has exactly the same data as a row already in the existing 2nd partition file: this file is left unmodified.
   - 5th row is newer data, and it is added in a new partition file.
 
 ```python
