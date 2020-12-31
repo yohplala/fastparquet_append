@@ -176,7 +176,11 @@ def write(dir_name: str, data: pd.DataFrame, append: bool = True, date_offset: s
     # Generate list of timestamps on offset to split the data 
     data = data.sort_index()
     start_time = _previous_offset(data.index[0], date_offset)
-    offset_list = pd.period_range(start = start_time, end = data.index[-1], freq = date_offset)
+    if isinstance(data.index, pd.PeriodIndex):
+        data_index = data.index.start_time
+    else:
+        data_index = data.index
+    offset_list = pd.period_range(start = start_time, end = data_index[-1], freq = date_offset)
 
     # If appending, and files already exist.
     if append and path.exists(dir_name) and [f for f in scandir(dir_name) if f.name[-8:] == '.parquet'] != []:
@@ -190,7 +194,7 @@ def write(dir_name: str, data: pd.DataFrame, append: bool = True, date_offset: s
             start = offset.start_time
             end = offset.end_time
             existing = fptr.to_pandas(filters=[(index_name, '>=', start), (index_name, '<=', end)])
-            new_slice = data.loc[(data.index >= start) & (data.index <= end)]
+            new_slice = data.loc[(data_index >= start) & (data_index <= end)]
             if not (existing.empty or new_slice.empty):
                 # Both DataFrames exist, merge them.
                 new_slice = _merge(existing, new_slice, drop_duplicates_on = drop_duplicates_on)
@@ -215,7 +219,7 @@ def write(dir_name: str, data: pd.DataFrame, append: bool = True, date_offset: s
         for offset in offset_list:
             start = offset.start_time
             end = offset.end_time
-            new_slice = data.loc[(data.index >= start) & (data.index <= end)]
+            new_slice = data.loc[(data_index >= start) & (data_index <= end)]
             if new_slice.empty:
                 continue
             else:

@@ -397,6 +397,19 @@ fpt = fastparquet.ParquetFile(file)
 fpt.to_pandas()
 
 
+########################################################################################################################
+# All previous checks replayed once again, with a PeriodIndex.
+date_offset = '4H'
+period_index = pd.period_range(start = pd.Timestamp('2020/01/02 01:00:00'), end = pd.Timestamp('2020/01/02 12:00:00'), freq='2H')
+df1 = pd.DataFrame({'humidity': [0.3, 0.8, 0.9, 0.3, 0.8, 0.9],
+                    'pressure': [1e5, 1.1e5, 0.95e5, 1e5, 1.1e5, 0.95e5],
+                    'location':['Paris', 'Paris', 'Milan', 'Paris', 'Paris', 'Milan']},
+                    index = period_index)
+write(file, df1, date_offset = date_offset)
+fpt = fastparquet.ParquetFile(file)
+fpt.to_pandas()
+
+
 
 # ToDo
 # test with a PeriodIndex   
