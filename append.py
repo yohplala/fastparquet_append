@@ -117,7 +117,7 @@ def write(dir_name: str, data: pd.DataFrame, append: bool = True, date_offset: s
            * if counted in day, week, month or year, it has to be a single unit (because no anchoring is provided for these larger timeframes)
            Examples of values: '2H', 'D', 'W', 'M', but not '2D' or '2W'...
       * append (bool, optional)
-          Requ`ired to be set on `True` to update existing parquet files when partitioning is based on `date_offset`.
+          Required to be set on `True` to update existing parquet files when partitioning is based on `date_offset`.
           The default is True.
       * drop_duplicates_on (str or list, optional)
           Either None, 'index', or a list specifying names of the columns to be used to identify duplicates. Index is necessarily added to this list.
