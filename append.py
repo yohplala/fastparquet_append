@@ -7,14 +7,14 @@ class WriteException(Exception):
     def __init__(self, message):
         self.message = message
 
-def _previous_offset(time_marker, offset: pd.DateOffset) -> pd.Timestamp:
+def _previous_offset(time_marker, offset: str) -> pd.Timestamp:
     """
 
     Parameters
       * time_marker (pd.Timestamp or pd.Period)
           Time marker from which is assessed closest earlier on offset timestamp.
-      * offset (pd.DateOffset)
-          Offset according pandas library, see https://pandas.pydata.org/pandas-docs/stable/user_guide/timeseries.html#dateoffset-objects
+      * offset (str)
+          Acceptable freq string according pandas library, see https://pandas.pydata.org/pandas-docs/stable/user_guide/timeseries.html#dateoffset-objects
 
     Returns
       * pd.Timestamp
@@ -22,16 +22,22 @@ def _previous_offset(time_marker, offset: pd.DateOffset) -> pd.Timestamp:
 
     """
 
-    if isinstance(time_marker, pd.Timestamp):
-        time_marker = pd.Period(time_marker, freq = offset.freqstr)
-    start_time = time_marker.start_time
-    end_time = time_marker.end_time
+
+    if isinstance(time_marker, pd.Period):
+        # Case index is a DatatimeIndex
+        time_marker = time_marker.start_time
+    # Assess offset duration
+    offset_period = pd.Period(time_marker, freq = offset) 
+    start_time = offset_period.start_time
+    end_time = offset_period.end_time
     if end_time - start_time < pd.Timedelta('1D'):
+        # Transform to pd.DateOffset
+        offset = pd.tseries.frequencies.to_offset(offset)
         midnight = start_time.normalize()
         n=(start_time-midnight)//offset
         return midnight + n*offset
     else:
-        return offset.rollback(start_time).normalize()
+        return start_time
 
 def _merge(df1, df2, drop_duplicates_on=None) -> pd.DataFrame:
     """
@@ -78,7 +84,7 @@ def _merge(df1, df2, drop_duplicates_on=None) -> pd.DataFrame:
         else:
             raise WriteException('{!s} is not a valid value for drop_duplicates_on parameter.'.format(drop_duplicates_on))            
 
-def write(dir_name: str, data: pd.DataFrame, append: bool = True, index_offsets: str = None,
+def write(dir_name: str, data: pd.DataFrame, append: bool = True, date_offset: str = None,
           drop_duplicates_on: str = None):
     """
 
@@ -94,8 +100,8 @@ def write(dir_name: str, data: pd.DataFrame, append: bool = True, index_offsets:
       * feature: different merging scenarii (Check use cases)
           * to append 'new' data that can be older or newer in time versus existing data.
           * or to correct existing data.
-      * limitation: once `index_offsets` is defined for the 1st write, it should be always the same at each new data merging.
-      * limitation: `index_offsets` only work with DataFrame having a `pandas.DatetimeIndex` or `pandas.PeriodIndex`
+      * limitation: once `date_offset` is defined for the 1st write, it should be always the same at each new data merging.
+      * limitation: `date_offset` only work with DataFrame having a `pandas.DatetimeIndex` or `pandas.PeriodIndex`
       * limitation: index_offset should not be lower than a second (because parquet filenames are rounded to the second)
 
     Parameters
@@ -103,11 +109,15 @@ def write(dir_name: str, data: pd.DataFrame, append: bool = True, index_offsets:
           Output directory name.
       * data (pd.DataFrame
           New data to append to existing Parquet dataset.
-      * index_offsets (str, optional)
+      * date_offset (str, optional)
           Date offset to be used to anchor row groups / parquet files (one row group per parquet file).
           The default is None. Provided date offset is automatically anchored to midnight.
+          Because of midnight anchoring,
+           * if a set of hours or minutes or seconds , it has to divide 24 hours in complete hours/minutes/seconds.
+           * if counted in day, week, month or year, it has to be a single unit (because no anchoring is provided for these larger timeframes)
+           Examples of values: '2H', 'D', 'W', 'M', but not '2D' or '2W'...
       * append (bool, optional)
-          Requ`ired to be set on `True` to update existing parquet files when partitioning is based on `index_offsets`.
+          Requ`ired to be set on `True` to update existing parquet files when partitioning is based on `date_offset`.
           The default is True.
       * drop_duplicates_on (str or list, optional)
           Either None, 'index', or a list specifying names of the columns to be used to identify duplicates. Index is necessarily added to this list.
@@ -147,7 +157,7 @@ def write(dir_name: str, data: pd.DataFrame, append: bool = True, index_offsets:
 
         Proposed changes for appending while considering DatetimeIndex partitioning
            file_scheme = 'hive'
-           index_offsets = str or pd.DateOffset
+           date_offset = str or pd.DateOffset
            partition_on = [] kept as is
            append: True / or write_mode = 'append'
 
@@ -155,21 +165,18 @@ def write(dir_name: str, data: pd.DataFrame, append: bool = True, index_offsets:
 
     # Check df has a DatetimeIndex
     if not (isinstance(data.index, pd.DatetimeIndex) or isinstance(data.index, pd.PeriodIndex)):
-        raise WriteException('DataFrame index has to be a DatetimeIndex or PeriodIndex for use with index_offsets.')
-        
-    if not isinstance(index_offsets, pd.DateOffset):
-        index_offsets = pd.tseries.frequencies.to_offset(index_offsets)
+        raise WriteException('DataFrame index has to be a DatetimeIndex or PeriodIndex for use with date_offset.')
     
     # /!\ Check to be implemented by reading from _metadata:
-    # If appending, check existing target parquet dataset has same `index_offsets`, e.g '2H'...
+    # If appending, check existing target parquet dataset has same `date_offset`, e.g '2H'...
     # Can it be store/read from metadata?
     # When appending, does not need to be provided again by the user: a single ìndex_offsets` is imposed.
 
     # 1st draft implementation, not using any _metadata, first to explain the idea.
     # Generate list of timestamps on offset to split the data 
     data = data.sort_index()
-    start_time = _previous_offset(data.index[0], index_offsets)
-    offset_list = pd.period_range(start = start_time, end = data.index[-1], freq = index_offsets)
+    start_time = _previous_offset(data.index[0], date_offset)
+    offset_list = pd.period_range(start = start_time, end = data.index[-1], freq = date_offset)
 
     # If appending, and files already exist.
     if append and path.exists(dir_name) and [f for f in scandir(dir_name) if f.name[-8:] == '.parquet'] != []:
@@ -198,7 +205,7 @@ def write(dir_name: str, data: pd.DataFrame, append: bool = True, index_offsets:
             if dir_name[-1] == '/':
                 fname = dir_name + 'part.' + str(int(start.timestamp())) + '.parquet' 
             else:
-                fname = dir_name + '/part.' + str(int(start.timestamp())) + '.parquet' 
+                fname = dir_name + '/part.' + str(int(start.timestamp())) + '.parquet'
             fastparquet.write(fname, new_slice)
     else:
         # No data already existing.
@@ -209,11 +216,14 @@ def write(dir_name: str, data: pd.DataFrame, append: bool = True, index_offsets:
             start = offset.start_time
             end = offset.end_time
             new_slice = data.loc[(data.index >= start) & (data.index <= end)]
-            if dir_name[-1] == '/':
-                fname = dir_name + 'part.' + str(int(start.timestamp())) + '.parquet' 
+            if new_slice.empty:
+                continue
             else:
-                fname = dir_name + '/part.' + str(int(start.timestamp())) + '.parquet' 
-            fastparquet.write(fname, new_slice)
+                if dir_name[-1] == '/':
+                    fname = dir_name + 'part.' + str(int(start.timestamp())) + '.parquet' 
+                else:
+                    fname = dir_name + '/part.' + str(int(start.timestamp())) + '.parquet' 
+                fastparquet.write(fname, new_slice)
     # Re-create metadata
     # /!\ Ideally, part to be optimized: only deal with metadata having been actually modified.
     # Sorting as `os.scandir` yield files in arbitrary order.
