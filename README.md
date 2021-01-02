@@ -8,7 +8,7 @@ Append function for Parquet dataset through fastparquet lib.
 import os
 import pandas as pd
 import fastparquet
-from append import write, _previous_offset
+from append import write
 
 path = os.path.expanduser('~/Documents/code/draft/data/')
 file = path + 'weather_data'
