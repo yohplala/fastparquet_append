@@ -8,12 +8,12 @@ Append function for Parquet dataset through fastparquet lib.
 import os
 import pandas as pd
 import fastparquet
-from append import write, _previous_offset
+from append import write
 
 path = os.path.expanduser('~/Documents/code/draft/data/')
 file = path + 'weather_data'
 
-date_offset = '2H'
+date_group_offset = '2H'
 df1 = pd.DataFrame({'humidity': [0.3, 0.8, 0.9],
                     'pressure': [1e5, 1.1e5, 0.95e5],
                     'location':['Paris', 'Paris', 'Milan']},
@@ -29,7 +29,7 @@ df1
 ```
 
 ```python
-write(file, df1, date_offset = date_offset)
+write(file, df1, date_group_offset = date_group_offset)
 ```
 
 * Considering DateOffset of 2 hours, only 2 partition files are written.
@@ -68,7 +68,6 @@ df2 = pd.DataFrame({'humidity': [0.5, 0.3, 0.3, 0.8, 1.1],
                              pd.Timestamp('2020/01/02 01:59:00'),
                              pd.Timestamp('2020/01/02 03:59:00'),
                              pd.Timestamp('2020/01/03 02:59:00')])
-write(file, df2, date_offset = date_offset)
 df2
 
                      humidity  pressure location
@@ -77,6 +76,10 @@ df2
 2020-01-02 01:59:00       0.3  110000.0    Paris
 2020-01-02 03:59:00       0.8  110000.0    Paris
 2020-01-03 02:59:00       1.1   95000.0    Paris
+```
+
+```python
+write(file, df2, date_group_offset = date_group_offset)
 ```
 
 * We can check that we have now 4 parquet files, one of them has not been modified since 1st step.
@@ -118,11 +121,13 @@ df3 = pd.DataFrame({'humidity': [0.4],
                     'pressure': [1e5],
                     'location':['Paris']},
                     index = [pd.Timestamp('2020/01/02 01:59:00')])
-write(file, df3, date_offset = date_offset, drop_duplicates_on = 'index')
 df3
 
                      humidity  pressure location
 2020-01-02 01:59:00       0.4  100000.0    Paris
+```
+```python
+write(file, df3, date_group_offset = date_group_offset, drop_duplicates_on = 'index')
 ```
 
 ```python
@@ -153,7 +158,7 @@ m = (df5.index >= ts1) & (df5.index <= ts2) & (df5['location'] == 'Paris')
 df5.loc[m,'pressure'] = df5.loc[m,'pressure'] + 9e4
 
 # Update data in Parquet dataset.
-write(file, df5, date_offset = date_offset, drop_duplicates_on = ['humidity', 'location'])
+write(file, df5, date_group_offset = date_group_offset, drop_duplicates_on = ['humidity', 'location'])
 fpt = fastparquet.ParquetFile(file)
 fpt.to_pandas()
 
