@@ -476,7 +476,7 @@ df2 = pd.DataFrame({'humidity': [2] * len(datetime_index),
 
 ########################################################################################################################
 # All previous checks replayed once again, with a PeriodIndex.
-# /!\ Does not work /!\
+# /!\ Does not work - see https://github.com/dask/fastparquet/issues/543 /!\
 date_group_offset = '4H'
 
 datetime_index = pd.date_range(start = pd.Timestamp('2020/01/02 01:00:00'), end = pd.Timestamp('2020/01/02 12:00:00'), freq='2H')
@@ -508,9 +508,4 @@ df1 = pd.DataFrame({'humidity': [0.3, 0.8, 0.9, 0.3, 0.8, 0.9],
                    },
                    index = datetime_index)
 
-
-
-# ToDo
-# test with a PeriodIndex   
-# test speed between concat and merge
 
